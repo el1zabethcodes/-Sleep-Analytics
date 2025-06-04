@@ -235,6 +235,18 @@ def weather():
         weather = {}
     return jsonify(weather)
 
+@app.route('/api/predict-quality')
+def predict_quality():
+    """Прогноз качества сна по параметрам"""
+    if not web_server.sleep_analyzer:
+        return jsonify({'prediction': None})
+
+    duration = float(request.args.get('duration', 8))
+    screen_time = float(request.args.get('screen_time', 2))
+    sleep_time = request.args.get('sleep_time', '23:00')
+    pred = web_server.sleep_analyzer.predict_quality(duration, screen_time, sleep_time)
+    return jsonify({'prediction': pred})
+
 # HTML шаблон (сохранить как templates/dashboard.html)
 dashboard_template = '''
 <!DOCTYPE html>

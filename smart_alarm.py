@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from playsound import playsound
 import schedule
+from sklearn.linear_model import LinearRegression
 
 class SleepAnalyzer:
     def __init__(self):
@@ -24,10 +25,16 @@ class SleepAnalyzer:
         self.current_date = datetime.now().date()
         self.screen_time_today = 0
         self.last_check_time = time.time()
+
+        # Модель для прогнозирования качества сна
+        self.quality_model = None
         
         # Настройки будильника
         self.alarm_time = None
         self.smart_wake_window = 30  # минут до установленного времени
+
+        # Обучение модели при инициализации (если есть данные)
+        self.load_sleep_data()
         
     def on_mouse_move(self, x, y):
         self.register_activity('mouse_move')
@@ -176,6 +183,9 @@ class SleepAnalyzer:
         # Сохранение в файл
         with open('sleep_data.json', 'w', encoding='utf-8') as f:
             json.dump(self.daily_stats, f, ensure_ascii=False, indent=2)
+
+        # Обучение модели после сохранения новых данных
+        self.train_quality_model()
             
     def load_sleep_data(self):
         """Загрузка исторических данных"""
@@ -184,6 +194,9 @@ class SleepAnalyzer:
                 self.daily_stats = json.load(f)
         except FileNotFoundError:
             self.daily_stats = {}
+
+        # Обучение модели после загрузки данных
+        self.train_quality_model()
             
     def set_smart_alarm(self, target_time):
         """Установка умного будильника"""
@@ -267,6 +280,38 @@ class SleepAnalyzer:
     def get_today_screen_time(self) -> float:
         """Получить экранное время за сегодня в часах"""
         return round(self.screen_time_today / 3600, 2)
+
+    def train_quality_model(self):
+        """Обучение простой модели линейной регрессии"""
+        features = []
+        labels = []
+        for day in self.daily_stats.values():
+            try:
+                duration = float(day.get('duration', 0))
+                screen = float(day.get('screen_time', 0))
+                hour = int(str(day.get('sleep_time', '23:00')).split(':')[0])
+            except ValueError:
+                continue
+            features.append([duration, screen, hour])
+            labels.append(day.get('quality', 5))
+
+        if len(features) >= 2:
+            self.quality_model = LinearRegression()
+            self.quality_model.fit(features, labels)
+        else:
+            self.quality_model = None
+
+    def predict_quality(self, duration: float, screen_time: float, sleep_time: str):
+        """Прогноз качества сна на основе модели"""
+        if not self.quality_model:
+            self.train_quality_model()
+
+        if not self.quality_model:
+            return None
+
+        hour = int(sleep_time.split(':')[0])
+        pred = self.quality_model.predict([[duration, screen_time, hour]])
+        return round(float(pred[0]), 1)
         
     def start_monitoring(self):
         """Запуск мониторинга"""
