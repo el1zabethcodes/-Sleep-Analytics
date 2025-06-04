@@ -19,6 +19,11 @@ class SleepAnalyzer:
         self.sleep_start = None
         self.sleep_end = None
         self.daily_stats = {}
+
+        # Учёт экранного времени
+        self.current_date = datetime.now().date()
+        self.screen_time_today = 0
+        self.last_check_time = time.time()
         
         # Настройки будильника
         self.alarm_time = None
@@ -65,6 +70,17 @@ class SleepAnalyzer:
         """Проверка статуса сна"""
         current_time = time.time()
         time_since_activity = current_time - self.last_activity
+
+        # учёт времени за компьютером
+        delta = current_time - self.last_check_time
+        self.last_check_time = current_time
+
+        if datetime.now().date() != self.current_date:
+            self.current_date = datetime.now().date()
+            self.screen_time_today = 0
+
+        if not self.is_sleeping:
+            self.screen_time_today += delta
         
         if not self.is_sleeping and time_since_activity > self.sleep_threshold:
             # Пользователь заснул
@@ -154,6 +170,7 @@ class SleepAnalyzer:
     def save_sleep_data(self, quality_data):
         """Сохранение данных о сне"""
         date_key = datetime.now().strftime('%Y-%m-%d')
+        quality_data['screen_time'] = self.get_today_screen_time()
         self.daily_stats[date_key] = quality_data
         
         # Сохранение в файл
@@ -232,12 +249,33 @@ class SleepAnalyzer:
 - Избегайте активности за час до сна
         """
         return report
+
+    def handle_external_signal(self, action: str):
+        """Обработка внешних сигналов от мобильного устройства"""
+        if action == 'sleep_start':
+            self.is_sleeping = True
+            self.sleep_start = datetime.now()
+            print(f"📱 Сигнал: пользователь лег спать в {self.sleep_start.strftime('%H:%M')}")
+        elif action == 'wake_up':
+            self.last_activity = time.time()
+            if self.is_sleeping:
+                self.sleep_end = datetime.now()
+                self.is_sleeping = False
+                self.wake_up_detected()
+            print(f"📱 Сигнал: пользователь проснулся в {datetime.now().strftime('%H:%M')}")
+
+    def get_today_screen_time(self) -> float:
+        """Получить экранное время за сегодня в часах"""
+        return round(self.screen_time_today / 3600, 2)
         
     def start_monitoring(self):
         """Запуск мониторинга"""
         print("🔍 Запуск мониторинга активности...")
         self.load_sleep_data()
-        
+
+        # напоминание о подготовке ко сну
+        schedule.every().day.at("22:30").do(lambda: print("🔔 Пора готовиться ко сну!"))
+
         # Запуск слушателей
         mouse_listener = MouseListener(
             on_move=self.on_mouse_move,
@@ -253,6 +291,7 @@ class SleepAnalyzer:
             while True:
                 self.check_sleep_status()
                 self.check_smart_alarm()
+                schedule.run_pending()
                 time.sleep(60)  # проверка каждую минуту
                 
         except KeyboardInterrupt:

@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timedelta
 import threading
 import time
+from smart_alarm import SleepAnalyzer
 
 app = Flask(__name__)
 CORS(app)
@@ -109,8 +110,9 @@ class SleepWebServer:
         
         return recommendations
 
-# Создание экземпляра веб-сервера
-web_server = SleepWebServer()
+# Создание экземпляра анализатора и веб-сервера
+sleep_analyzer = SleepAnalyzer()
+web_server = SleepWebServer(sleep_analyzer)
 
 @app.route('/')
 def dashboard():
@@ -203,6 +205,36 @@ def get_sleep_trends():
     
     return jsonify(trends)
 
+@app.route('/api/signal', methods=['POST'])
+def mobile_signal():
+    """Получение сигнала о начале сна или пробуждении с мобильного"""
+    data = request.json
+    action = data.get('action')
+    if web_server.sleep_analyzer and action:
+        web_server.sleep_analyzer.handle_external_signal(action)
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/screen-time')
+def screen_time():
+    """Получение экранного времени за сегодня"""
+    if not web_server.sleep_analyzer:
+        return jsonify({'screen_time': 0})
+    return jsonify({'screen_time': web_server.sleep_analyzer.get_today_screen_time()})
+
+@app.route('/api/weather')
+def weather():
+    """Погода от сервиса open-meteo.com"""
+    lat = request.args.get('lat', '55.75')
+    lon = request.args.get('lon', '37.61')
+    url = f'https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true'
+    try:
+        import requests
+        resp = requests.get(url, timeout=5)
+        weather = resp.json().get('current_weather', {})
+    except Exception:
+        weather = {}
+    return jsonify(weather)
+
 # HTML шаблон (сохранить как templates/dashboard.html)
 dashboard_template = '''
 <!DOCTYPE html>
@@ -268,4 +300,13 @@ def run_web_server(host='localhost', port=5000, debug=True):
         os.makedirs('templates')
     
     # Сохранение HTML шаблона
-    with open('templates/dashboard.html', 'w', encoding
+    with open('templates/dashboard.html', 'w', encoding='utf-8') as f:
+        f.write(dashboard_template)
+
+    app.run(host=host, port=port, debug=debug)
+
+if __name__ == '__main__':
+    # Запуск анализатора в отдельном потоке
+    threading.Thread(target=sleep_analyzer.start_monitoring, daemon=True).start()
+    run_web_server()
+
