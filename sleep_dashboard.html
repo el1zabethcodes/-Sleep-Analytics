@@ -52,10 +52,11 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transform-style: preserve-3d;
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-5px) rotateX(5deg) rotateY(-5deg);
             box-shadow: 0 12px 40px rgba(0,0,0,0.15);
         }
 
@@ -95,6 +96,12 @@
             padding: 25px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            transform-style: preserve-3d;
+        }
+
+        .chart-container:hover {
+            transform: rotateX(5deg) rotateY(5deg);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
         }
 
         .chart-title {
@@ -471,17 +478,25 @@
             setInterval(updateStatus, 60000);
         });
 
-        // Эффект параллакса для фона
+        // Эффект параллакса и 3D наклона
         document.addEventListener('mousemove', function(e) {
             const cards = document.querySelectorAll('.stat-card, .chart-container');
             const mouseX = e.clientX / window.innerWidth;
             const mouseY = e.clientY / window.innerHeight;
-            
+
             cards.forEach((card, index) => {
                 const speed = (index + 1) * 0.5;
                 const x = (mouseX - 0.5) * speed;
                 const y = (mouseY - 0.5) * speed;
-                card.style.transform = `translate(${x}px, ${y}px)`;
+                const rotateY = (mouseX - 0.5) * 10;
+                const rotateX = -(mouseY - 0.5) * 10;
+                card.style.transform = `translate(${x}px, ${y}px) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
+            });
+        });
+
+        document.addEventListener('mouseleave', function() {
+            document.querySelectorAll('.stat-card, .chart-container').forEach(card => {
+                card.style.transform = 'translate(0,0) rotateY(0deg) rotateX(0deg)';
             });
         });
     </script>
